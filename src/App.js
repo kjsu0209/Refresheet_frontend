@@ -1,25 +1,25 @@
-import logo from './logo.svg';
 import './App.css';
+import React from 'react';
+import SheetList from './components/sheets/SheetList'
+import Sheet from './components/sheets/Sheet'
+import CreateSheet from './components/sheets/CreateSheet'
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { BrowserRouter as Router, Route } from 'react-router-dom';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+
+
+const App = () => { 
+  return ( 
+    <Router>
+      <div className="container"> 
+        <h1>Refresheet</h1> 
+        <Route exact path='/sheet' component={SheetList}/>
+        <Route exact path='/sheet/create' component={CreateSheet}/>
+        <Route exact path='/sheet/edit/:sheetId' component={Sheet}/>
+      </div>
+    </Router> 
+  ); 
 }
+
 
 export default App;
