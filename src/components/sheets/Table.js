@@ -9,8 +9,10 @@ import moment, {isMoment} from 'moment';
 
 const Table = ({sheet}) => {
     const data = useRef(Array.from(Array(sheet.rowNum), ()=> new Array(sheet.colNum)));
+    const [dState, setDState] = useState(sheet.sheetDataList);
     const sheetColumn = useRef([]);
     const [modalIsOpen, setModalIsOpen] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState(moment());
     const setModalIsOpenToTrue =()=>{
         setModalIsOpen(true)
     }
@@ -39,11 +41,53 @@ const Table = ({sheet}) => {
         if(data.current[row][col].dataId){
             d['dataId'] = data.current[row][col].dataId;
         }
+
+        let stateData = dState[data.current[row][col].dataIndex];
+
         if(data.current[row][col].value !== val){
             axios.post(`http://localhost:8080/sheet/v1.0.0/data`, d)
+                .then((res)=>{
+                    // update lastModified
+                    setLastUpdated(moment());
+                    
+                    if(res.status === 201){
+                        data.current[row][col].dataId = res.data;
+                        d['dataId'] = res.data;
+                        sheet.sheetDataList.push(d);
+                    }
+                    if(!stateData){
+                        data.current[row][col].dataIndex = dState.length;
+                        setDState([
+                            ...dState,
+                            d
+                        ])
+                    }
+                    else{
+                        stateData.data = val;
+                        setDState([
+                            ...dState.slice(0, data.current[row][col].dataIndex),
+                            d,
+                            ...dState.slice(data.current[row][col].dataIndex+1)
+                        ])
+                    }
+                })
                 .catch((err)=>{
                     console.log(err);
                 })
+        }
+        data.current[row][col].value = val;
+        if(dState[data.current[row][col].dataIndex]){
+            setDState([
+                ...dState.slice(0, data.current[row][col].dataIndex),
+                d,
+                ...dState.slice(data.current[row][col].dataIndex+1)
+            ])
+        }else{
+            data.current[row][col].dataIndex = dState.length;
+            setDState([
+                ...dState,
+                d
+            ])
         }
     }
     console.log(sheet)
@@ -55,6 +99,10 @@ const Table = ({sheet}) => {
         let id = parseInt(e.target.id.split('-')[1]);
         if(sheetColumn.current[id].value !== sheet['sheetColumns'][id].colName){
             axios.put(`http://localhost:8080/sheet/v1.0.0/`+sheet.sheetId + '/col', {'colNo': sheet['sheetColumns'][id].colNo, 'colName': sheetColumn.current[id].value, 'dataType': sheet['sheetColumns'][id].dataType})
+                .then((res)=>{
+                    // update lastModified
+                    setLastUpdated(moment());
+                })
                 .catch((err)=>{
                     console.log(err);
                 })
@@ -63,17 +111,20 @@ const Table = ({sheet}) => {
 
     const [rowNum, setRowNum] = useState(sheet.rowNum);
 
-    const CreateBody = () => {
-        let rows = [];
+    useEffect(()=>{
 
+    })
+
+    const CreateBody = () => {
         sheet.sheetDataList.forEach((item, index)=>{
             data.current[item.rowNo][getColNumber(item.colNo)] = {
                 value: item.data,
-                dataId: item.dataId
+                dataId: item.dataId,
+                dataIndex: index
             }
         });
-        console.log(data.current);
 
+        let rows = [];
 
         for(let i=0;i<rowNum;i++){
             let cols = [];
@@ -87,40 +138,79 @@ const Table = ({sheet}) => {
 
                 let dt = sheetColumn.current[j].dataType;
                 if(dt === 'TEXT'){
-                    cols.push(<td>
-                        <input id={'d-'+i +'-'+j} type="text" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}} defaultValue={data.current[i][j].value}/>
+                    cols.push(<td key={'td-'+i+'-'+j}>
+                        <input id={'d-'+i +'-'+j} type="text" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}}
+                               defaultValue={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
                     </td>);
                 }
                 else if(dt === 'NUMBER'){
-                    cols.push(<td>
-                        <input id={'d-'+i +'-'+j} type="number" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}} defaultValue={data.current[i][j].value}/>
+                    cols.push(<td key={'td-'+i+'-'+j}>
+                        <input id={'d-'+i +'-'+j} type="number" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}}
+                               defaultValue={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
                     </td>);
                 }
                 else if(dt === 'DATE'){
-                    cols.push(<td>
-                        <input id={'d-'+i +'-'+j} type="text" ref={data.current[i][j]} onFocus={
-                            (e) => {
-
-                            }
-                        } onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}} defaultValue={data.current[i][j].value}/>
+                    cols.push(<td key={'td-'+i+'-'+j}>
                         <DatePicker
                             id={'date-'+i +'-'+j}
-                            selected={moment(data.current[i][j].value).toDate()}
-                            valueDefault={moment.isDate(data.current[i][j].value) ? data.current[i][j].value: null}
+                            selected={dState[data.current[i][j].dataIndex] && dState[data.current[i][j].dataIndex].data ? new Date(dState[data.current[i][j].dataIndex].data) : null}
                             ref={data.current[i][j]}
                             onChange={(date, e)=>{
-                                let bDate = moment(data.current[i][j].value, 'YYYY-MM-DD', true);
+                                // update lastModified
+                                setLastUpdated(moment());
+
+                                if(!date){
+                                    date = ""
+                                }
+                                let newD = {
+                                    sheetId: sheet.sheetId,
+                                    rowNo: i,
+                                    colNo: sheetColumn.current[j].colNo,
+                                    data: date
+                                }
+                                let d = dState[data.current[i][j].dataIndex];
+
+                                if(data.current[i][j].dataId){
+                                    newD['dataId'] = data.current[i][j].dataId;
+                                }
+                                if(data.current[i][j].value !== date){
+                                    axios.post(`http://localhost:8080/sheet/v1.0.0/data`, newD)
+                                        .then((res)=>{
+                                            if(res.status === 201){
+                                                data.current[i][j].dataId = res.data;
+                                                newD['dataId'] = res.data;
+                                                sheet.sheetDataList.push(newD);
+                                            }
+
+                                            if(!d){
+                                                data.current[i][j].dataIndex = dState.length;
+                                                setDState([
+                                                    ...dState,
+                                                    newD
+                                                ])
+                                            }
+                                            else{
+                                                d.data = date;
+                                                setDState([
+                                                    ...dState.slice(0, data.current[i][j].dataIndex),
+                                                    newD,
+                                                    ...dState.slice(data.current[i][j].dataIndex+1)
+                                                ])
+                                            }
+                                        })
+                                        .catch((err)=>{
+                                            console.log(err);
+                                        })
+                                }
                                 data.current[i][j].value = date;
-                                e.target.selected = bDate.toDate();
                             }}
-                            onBlur={onBlurData}
                             dateFormat={'yyyy-MM-dd'}
                         />
                     </td>);
                 }
 
             }
-            rows.push(<tr height= "30">
+            rows.push(<tr key={'tr-data-'+i} height= "30">
                 {cols}
             </tr>)
         }
@@ -144,7 +234,9 @@ const Table = ({sheet}) => {
                 NUMBER: faDiceFive,
                 DATE: faCalendarAlt};
 
-            let header = <th scope="col">
+            sheetColumn.current[sheetColumn.current.length] = {value:item.colName, colNo: item.colNo, dataType: item.dataType};
+
+            let header = <th scope="col" key={'th-'+i}>
                     <div className="input-group">
                         <label htmlFor={'h-' + i} className="me-2">
                             <FontAwesomeIcon style={{color: "gray"}} icon={dt[item.dataType]}/>
@@ -154,7 +246,6 @@ const Table = ({sheet}) => {
                                onBlur={onFocusCols}/>
                     </div>
                  </th>;
-            sheetColumn.current.push({value:item.colName, colNo: item.colNo, dataType: item.dataType});
             headers.push(
                 header
             )
@@ -183,9 +274,9 @@ const Table = ({sheet}) => {
         <>
         <table className="table table-bordered">
             <thead>
-                <tr>
+                <tr key="first-tr-for-header">
                     {createHeader()}
-                    <td>
+                    <td key="last-td-for-add">
                         <div className="" onClick={setModalIsOpenToTrue} style={{color:"gray", height:"2rem", width:"2rem", textAlign:"center", lineHeight:"2rem"}}>
                             <FontAwesomeIcon style={{cursor:'pointer'}} className="me-2" icon={faPlus} />
                         </div>
@@ -194,7 +285,7 @@ const Table = ({sheet}) => {
             </thead>
             <tbody>
             {CreateBody()}
-            <tr>
+            <tr key="last-tr-for-add">
                 <td colSpan={sheet.colNum} style={{color: "gray"}}>
                     <FontAwesomeIcon onClick={addRow} style={{cursor:'pointer'}} className="me-2" icon={faPlus} /> Add Row
                 </td>
@@ -234,6 +325,7 @@ const Table = ({sheet}) => {
                     <button type="submit" className="btn btn-primary">Submit</button>
                 </form>
             </Modal>
+            <small>last updated: {lastUpdated.format('YYYY-MM-DD HH:mm:ss')}</small>
         </>
     );
 }

@@ -1,8 +1,9 @@
-import React, {useRef} from "react"
+import React, {useEffect, useRef} from "react"
 import 'bootstrap/dist/css/bootstrap.min.css';
 import Table from "./Table"
 import useFetch from "../util/useFetch"
-
+import StompJs from "react-stomp";
+import SockJS from "sockjs-client";
 import axios from "axios";
 
 const Link = require('react-router-dom').Link;
@@ -14,10 +15,26 @@ function Sheet({match}) {
         `http://localhost:8080/sheet/v1.0.0/` + match.params.sheetId
     );
 
+    const client = useRef({});
+
+    useEffect(()=>{
+        connectWebSocket();
+    })
+
+    const connectWebSocket = () => {
+        client.current = new SockJS('http://localhost:8080/refresheet-websocket');
+        client.current.onopen = () => {
+            console.log('open');
+            client.current.send('hi');
+        }
+
+    }
+
     if (loading) return <p>Loading...</p>;
     if (error) return <p>Error!</p>;
 
     sheetName.current.value = sheet['sheetName'];
+
 
 
     const onChangeName = (e) =>{
