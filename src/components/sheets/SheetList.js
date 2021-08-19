@@ -1,5 +1,7 @@
 import useFetch from "../util/useFetch"
 import 'bootstrap/dist/css/bootstrap.min.css';
+import axios from "axios";
+import {useHistory} from "react-router-dom";
 const Link = require('react-router-dom').Link;
 
 
@@ -7,15 +9,24 @@ function SheetList() {
     const{ loading, data: sheetList, error } = useFetch(
         `http://localhost:8080/sheet/v1.0.0`
     );
+
+    const history = useHistory();
+    const createSheet = () =>{
+        axios.post(`http://localhost:8080/sheet/v1.0.0`, {})
+        .then((res)=>{
+            console.log(res.data);
+            history.push("/sheet/edit/" + res.data);
+        }).catch((err)=>{
+            alert("Sheet를 추가할 수 없습니다..");
+        })
+    }
     
     if (loading) return <p>Loading...</p>;
     if (error) return <p>Error!</p>;  
 
     return(
         <div>
-            <Link to="/sheet/create">
-                <button className="btn btn-primary">Create</button>
-            </Link>
+            <button className="btn btn-primary" onClick={createSheet}>Create</button>
             <table className="table table-striped">
                 <thead>
                     <tr>

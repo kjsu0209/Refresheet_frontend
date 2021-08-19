@@ -10,8 +10,7 @@ import { BrowserRouter as Router, Route } from 'react-router-dom';
 
 const App = () => { 
   return ( 
-    <Router>
-      <div className="container"> 
+    <Router>      <div className="container">
         <h1>Refresheet</h1> 
         <Route exact path='/sheet' component={SheetList}/>
         <Route exact path='/sheet/create' component={CreateSheet}/>
