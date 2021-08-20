@@ -6,6 +6,12 @@ import Modal from 'react-modal';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css"
 import moment, {isMoment} from 'moment';
+import SockJS from 'sockjs-client';
+import Stomp from 'stompjs';
+
+let sockClient = new SockJS('http://localhost:8080/refresheet-websocket');
+let stompClient = Stomp.Client = Stomp.over(sockClient);
+stompClient.debug= () => {};
 
 const Table = ({sheet}) => {
     const data = useRef(Array.from(Array(sheet.rowNum), ()=> new Array(sheet.colNum)));
@@ -13,6 +19,19 @@ const Table = ({sheet}) => {
     const sheetColumn = useRef([]);
     const [modalIsOpen, setModalIsOpen] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(moment());
+    const myInfo = useRef({name:'', ipAddr:'', sessionId:''});
+    const [myInfoState, setMyInfoState] = useState(null);
+    const [editors, setEditors] = useState([]);
+    const getData = async () =>{
+        const res = await axios.get('https://geolocation-db.com/json/');
+        myInfo.current.ipAddr = res.data.IPv4;
+
+        let url_splt = sockClient._transport.url.split("/");
+        myInfo.current.sessionId = url_splt[5];
+        // 첫 접속
+        stompClient.send('/app/sheet/init/'+sheet.sheetId, {}, JSON.stringify({ipAddr: myInfo.current.ipAddr, sessionId: url_splt[5]}));
+
+    }
     const setModalIsOpenToTrue =()=>{
         setModalIsOpen(true)
     }
@@ -24,8 +43,122 @@ const Table = ({sheet}) => {
     const onChangeData = (e) => {
         //console.log(e.target.value);
         // 이 부분에 웹 소켓 통신 넣을 것
+        let targetId = e.target.id.split('-');
+        let row = parseInt(targetId[1]);
+        let col = parseInt(targetId[2]);
+        let val = e.target.value;
+        let d = {
+            sheetId: sheet.sheetId,
+            rowNo: row,
+            colNo: sheetColumn.current[col].colNo,
+            data: val,
+            editorName: myInfo.current.name
+        }
+        if(data.current[row][col].dataId){
+            d['dataId'] = data.current[row][col].dataId;
+
+            let dIndex = data.current[row][col].dataIndex;
+            let newD = dState[data.current[row][col].dataIndex];
+            if(!newD){
+                newD = d;
+            }
+            newD['data'] = val;
+            setDState([...dState.slice(0, dIndex),
+                newD,
+                ...dState.slice(dIndex+1)]);
+            stompClient.send('/app/sheet/edit/'+sheet.sheetId, {}, JSON.stringify(d));
+
+        }
+        else{
+            let stateData = dState[data.current[row][col].dataIndex];
+
+            axios.post(`http://localhost:8080/sheet/v1.0.0/data`, d)
+                .then((res)=>{
+                    // update lastModified
+                    setLastUpdated(moment());
+
+                    if(res.status === 201){
+                        data.current[row][col].dataId = res.data;
+                        d['dataId'] = res.data;
+
+                        sheet.sheetDataList.push(d);
+                    }
+                    if(!stateData){
+                        data.current[row][col].dataIndex = dState.length;
+                        setDState([
+                            ...dState,
+                            d
+                        ])
+                    }
+                    else{
+                        stateData.data = val;
+                        setDState([
+                            ...dState.slice(0, data.current[row][col].dataIndex),
+                            d,
+                            ...dState.slice(data.current[row][col].dataIndex+1)
+                        ])
+                    }
+                    stompClient.send('/app/sheet/edit/'+sheet.sheetId, {}, JSON.stringify(d));
+
+                })
+                .catch((err)=>{
+                    console.log(err);
+                })
+        }
+
 
     }
+
+    useEffect(()=>{
+
+        stompClient.connect({}, function (frame) {
+            console.log('connect')
+            // editor 정보 받기
+            stompClient.subscribe('/topic/sheet/init/'+sheet.sheetId, (msg)=>{
+                let body = JSON.parse(msg.body);
+                //console.log(body);
+                myInfo.current.name = body.name;
+                setMyInfoState({name: body.name});
+              });
+
+            // data 변경 정보 받기
+            stompClient.subscribe('/topic/sheet/edit/'+sheet.sheetId, (msg)=>{
+                let body = JSON.parse(msg.body);
+                //console.log(body)
+                if(body.data !== data.current[body.rowNo][getColNumber(body.colNo)].value){
+                    // update lastModified
+                    setLastUpdated(moment());
+
+                    let dIndex = data.current[body.rowNo][getColNumber(body.colNo)].dataIndex;
+                    let d = dState[dIndex];
+
+                    if(!d){
+                        dIndex = dState.length;
+                        d = {
+                            sheetId: sheet.sheetId,
+                            rowNo: body.rowNo,
+                            colNo: body.colNo,
+                            data: body.data,
+                            dataId: body.dataId
+                        };
+                        data.current[body.rowNo][getColNumber(body.colNo)].dataIndex = dIndex;
+                    }
+                    console.log(d)
+                    d['data']  = body.data;
+                    setDState([...dState.slice(0, dIndex),
+                        d,
+                        ...dState.slice(dIndex+1)]);
+                    console.log('change data');
+                }
+            })
+            getData();
+        });
+
+        stompClient.onStompError = function (frame) {
+            console.log('Broker reported error: ' + frame.headers['message']);
+            console.log('Additional details: ' + frame.body);
+        };
+    }, [myInfo.current])
 
     const onBlurData = (e) => {
         let targetId = e.target.id.split('-');
@@ -44,7 +177,39 @@ const Table = ({sheet}) => {
 
         let stateData = dState[data.current[row][col].dataIndex];
 
-        if(data.current[row][col].value !== val){
+        if(!sheet.sheetDataList[data.current[row][col].dataIndex]){
+            axios.post(`http://localhost:8080/sheet/v1.0.0/data`, d)
+                .then((res)=>{
+                    // update lastModified
+                    setLastUpdated(moment());
+
+                    if(res.status === 201){
+                        data.current[row][col].dataId = res.data;
+                        d['dataId'] = res.data;
+                        sheet.sheetDataList.push(d);
+                    }
+                    if(!stateData){
+                        data.current[row][col].dataIndex = dState.length;
+                        setDState([
+                            ...dState,
+                            d
+                        ])
+                    }
+                    else{
+                        stateData.data = val;
+                        setDState([
+                            ...dState.slice(0, data.current[row][col].dataIndex),
+                            d,
+                            ...dState.slice(data.current[row][col].dataIndex+1)
+                        ])
+                    }
+                })
+                .catch((err)=>{
+                    console.log(err);
+                })
+        }
+        else if(data.current[row][col].value !== sheet.sheetDataList[data.current[row][col].dataIndex].value){
+            sheet.sheetDataList[data.current[row][col].dataIndex].value = val;
             axios.post(`http://localhost:8080/sheet/v1.0.0/data`, d)
                 .then((res)=>{
                     // update lastModified
@@ -90,7 +255,6 @@ const Table = ({sheet}) => {
             ])
         }
     }
-    console.log(sheet)
     const onChangeCols = (e) =>{
         let id = parseInt(e.target.id.split('-')[1]);
         sheetColumn.current[id].value = e.target.value;
@@ -110,10 +274,6 @@ const Table = ({sheet}) => {
     }
 
     const [rowNum, setRowNum] = useState(sheet.rowNum);
-
-    useEffect(()=>{
-
-    })
 
     const CreateBody = () => {
         sheet.sheetDataList.forEach((item, index)=>{
@@ -140,13 +300,13 @@ const Table = ({sheet}) => {
                 if(dt === 'TEXT'){
                     cols.push(<td key={'td-'+i+'-'+j}>
                         <input id={'d-'+i +'-'+j} type="text" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}}
-                               defaultValue={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
+                               value={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
                     </td>);
                 }
                 else if(dt === 'NUMBER'){
                     cols.push(<td key={'td-'+i+'-'+j}>
                         <input id={'d-'+i +'-'+j} type="number" ref={data.current[i][j]} onChange={onChangeData} onBlur={onBlurData} className="form-control" style={{border:"none"}}
-                               defaultValue={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
+                               value={dState[data.current[i][j].dataIndex] ? dState[data.current[i][j].dataIndex].data : ""}/>
                     </td>);
                 }
                 else if(dt === 'DATE'){
@@ -272,6 +432,7 @@ const Table = ({sheet}) => {
 
     return(
         <>
+
         <table className="table table-bordered">
             <thead>
                 <tr key="first-tr-for-header">
@@ -292,6 +453,7 @@ const Table = ({sheet}) => {
             </tr>
             </tbody>
         </table>
+
             <Modal isOpen={modalIsOpen} style={{
                 overlay: {
                     backgroundColor: "rgba(0, 0, 0, 0.5)"
@@ -326,6 +488,13 @@ const Table = ({sheet}) => {
                 </form>
             </Modal>
             <small>last updated: {lastUpdated.format('YYYY-MM-DD HH:mm:ss')}</small>
+            <div className="float-end" style={{border: "1px solid lightgray", padding: "1rem", fontSize:"12px"}}>
+                <p style={{fontSize:"15px"}}><b>Editor</b></p>
+                <ul>
+                    <li ref={myInfo}>{myInfo.current.name} (me)</li>
+                    {editors.map(e => e)}
+                </ul>
+            </div>
         </>
     );
 }
