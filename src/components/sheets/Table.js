@@ -54,6 +54,8 @@ const Table = ({sheet}) => {
             data: val,
             editorName: myInfo.current.name
         }
+        console.log('DDDDDDDDDDDDD');
+        console.log(d);
         if(data.current[row][col].dataId){
             d['dataId'] = data.current[row][col].dataId;
 
@@ -124,13 +126,19 @@ const Table = ({sheet}) => {
             // data 변경 정보 받기
             stompClient.subscribe('/topic/sheet/edit/'+sheet.sheetId, (msg)=>{
                 let body = JSON.parse(msg.body);
-                //console.log(body)
+                console.log(body)
+                // 현재 세션에서는 data가 등록되지 않앗을 경우
+                if(!data.current[body.rowNo][getColNumber(body.colNo)]){
+                    data.current[body.rowNo][getColNumber(body.colNo)] = {
+                        value : ""
+                    }
+                }
                 if(body.data !== data.current[body.rowNo][getColNumber(body.colNo)].value){
                     // update lastModified
                     setLastUpdated(moment());
 
-                    let dIndex = data.current[body.rowNo][getColNumber(body.colNo)].dataIndex;
-                    let d = dState[dIndex];
+                    let dIndex = data.current[body.rowNo][getColNumber(body.colNo)] ? data.current[body.rowNo][getColNumber(body.colNo)].dataIndex : null;
+                    let d = dIndex ? dState[dIndex] : null;
 
                     if(!d){
                         dIndex = dState.length;
@@ -141,7 +149,12 @@ const Table = ({sheet}) => {
                             data: body.data,
                             dataId: body.dataId
                         };
-                        data.current[body.rowNo][getColNumber(body.colNo)].dataIndex = dIndex;
+
+                    }
+                    data.current[body.rowNo][getColNumber(body.colNo)] = {
+                        value : body.data,
+                        dataIndex: dIndex,
+                        dataId: body.dataId
                     }
                     console.log(d)
                     d['data']  = body.data;
@@ -160,6 +173,7 @@ const Table = ({sheet}) => {
         };
     }, [myInfo.current])
 
+    console.log(sheet)
     const onBlurData = (e) => {
         let targetId = e.target.id.split('-');
         let row = parseInt(targetId[1]);
@@ -241,19 +255,19 @@ const Table = ({sheet}) => {
                 })
         }
         data.current[row][col].value = val;
-        if(dState[data.current[row][col].dataIndex]){
-            setDState([
-                ...dState.slice(0, data.current[row][col].dataIndex),
-                d,
-                ...dState.slice(data.current[row][col].dataIndex+1)
-            ])
-        }else{
-            data.current[row][col].dataIndex = dState.length;
-            setDState([
-                ...dState,
-                d
-            ])
-        }
+        // if(dState[data.current[row][col].dataIndex]){
+        //     setDState([
+        //         ...dState.slice(0, data.current[row][col].dataIndex),
+        //         d,
+        //         ...dState.slice(data.current[row][col].dataIndex+1)
+        //     ])
+        // }else{
+        //     data.current[row][col].dataIndex = dState.length;
+        //     setDState([
+        //         ...dState,
+        //         d
+        //     ])
+        // }
     }
     const onChangeCols = (e) =>{
         let id = parseInt(e.target.id.split('-')[1]);
@@ -272,7 +286,7 @@ const Table = ({sheet}) => {
                 })
         }
     }
-
+    //console.log(sheet)
     const [rowNum, setRowNum] = useState(sheet.rowNum);
 
     const CreateBody = () => {
@@ -318,7 +332,6 @@ const Table = ({sheet}) => {
                             onChange={(date, e)=>{
                                 // update lastModified
                                 setLastUpdated(moment());
-
                                 if(!date){
                                     date = ""
                                 }
@@ -333,13 +346,14 @@ const Table = ({sheet}) => {
                                 if(data.current[i][j].dataId){
                                     newD['dataId'] = data.current[i][j].dataId;
                                 }
+                                console.log(newD)
+
                                 if(data.current[i][j].value !== date){
                                     axios.post(`http://localhost:8080/sheet/v1.0.0/data`, newD)
                                         .then((res)=>{
                                             if(res.status === 201){
                                                 data.current[i][j].dataId = res.data;
                                                 newD['dataId'] = res.data;
-                                                sheet.sheetDataList.push(newD);
                                             }
 
                                             if(!d){
@@ -378,12 +392,13 @@ const Table = ({sheet}) => {
     }
 
     const getColNumber = (colNo) => {
+        let idx = null;
         sheetColumn.current.forEach((item, index)=>{
-            if(parseInt(item.colNo) === parseInt(colNo)){
-                return index;
+            if(item.colNo === colNo){
+                idx = index;
             }
         })
-        return colNo-1;
+        return idx;
     }
 
     const createHeader = () => {
