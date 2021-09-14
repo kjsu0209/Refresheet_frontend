@@ -13,4 +13,17 @@
 - Sock.js: 소켓 통신 라이브러리
 - BootStrap
 
+### ScreenShots  
+#### Table 편집  
+편집되는 내용은 onChange이벤트로 실시간으로 웹 소켓 서버에 전송되고, 커서가 input창 밖으로 나가면 DB에 값이 업데이트됩니다.
+![image](https://user-images.githubusercontent.com/35682236/133249366-5763769d-3610-49cd-a366-e70a17d5df87.png)  
+onChange 이벤트 발생 시, 같은 Sheet ID를 구독하는 구독자에게 변경 이벤트가 broadcast됩니다. 구독자는 구독자의 ip 주소와 웹 소켓 서버 연결 시 발급되는 session id로 구분합니다.  
+![image](https://user-images.githubusercontent.com/35682236/133249424-1a76527e-7bf6-461d-b278-1dc627060454.png)
+
+#### Column 추가  
+텍스트, 숫자, 날짜 데이터 타입을 지정할 수 있습니다.
+![image](https://user-images.githubusercontent.com/35682236/133249399-4e770e2b-5be9-40f2-894e-34669a806b5a.png)  
+
+지정한 데이터 타입에 따라 input의 유형이 바뀝니다.
+![image](https://user-images.githubusercontent.com/35682236/133249416-41fdc032-a25e-4295-bcda-3f249b0e9c02.png)
 
