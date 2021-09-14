@@ -13,6 +13,16 @@
 - Sock.js: 소켓 통신 라이브러리
 - BootStrap
 
+### 특징  
+- 가독성, 성능 향상을 위해 Functional Component로 구현했습니다.  
+- Functional Component는 Stateless 특성을 갖고 있어야 하지만, 실시간 편집 내용 공유 기능 때문에 state와 props를 함께 사용합니다.
+- [Evolutionary Model](https://www.geeksforgeeks.org/software-engineering-evolutionary-model/)을 적용해, 단계적으로 프로젝트를 개선시켰습니다.  
+
+> 개선 과정  
+> level 1: 단순한 Table 편집 기능 구현(sheet, column, row 추가), cursor가 input 밖으로 나가는 이벤트 발생 시 DB 업데이트 요청(axoi)  
+> level 2: column별 데이터타입 다양화(number, text, date), datepicker 적용  
+> level 3: 웹 소켓 통신, onChange 이벤트로 실시간 데이터 변경 사항 공유 기능 구현  
+
 ### ScreenShots  
 #### Table 편집  
 편집되는 내용은 onChange이벤트로 실시간으로 웹 소켓 서버에 전송되고, 커서가 input창 밖으로 나가면 DB에 값이 업데이트됩니다.
