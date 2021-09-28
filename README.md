@@ -1,8 +1,9 @@
 # Refresheet Project - Frontend
+> [Backend Repo 바로가기](https://github.com/kjsu0209/Refresheet_backend)
 
 ### Project
 개인 프로젝트 - [jsooOO](https://github.com/kjsu0209)  
-프로젝트 기간: 2021.08.09 ~ 2021.08.20
+프로젝트 기간: 2021.08.09 ~ 2021.08.20  
 
 ### Refresheet이란?
 관계형 데이터베이스 기반 Table 공동 편집 서비스
