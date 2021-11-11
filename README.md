@@ -20,9 +20,9 @@
 - [Evolutionary Model](https://www.geeksforgeeks.org/software-engineering-evolutionary-model/)을 적용해, 단계적으로 프로젝트를 개선시켰습니다.  
 
 > 개선 과정  
-> level 1: 단순한 Table 편집 기능 구현(sheet, column, row 추가), cursor가 input 밖으로 나가는 이벤트 발생 시 DB 업데이트 요청(axoi)  
-> level 2: column별 데이터타입 다양화(number, text, date), datepicker 적용  
-> level 3: 웹 소켓 통신, onChange 이벤트로 실시간 데이터 변경 사항 공유 기능 구현  
+> Iter 1: 단순한 Table 편집 기능 구현(sheet, column, row 추가), cursor가 input 밖으로 나가는 이벤트 발생 시 DB 업데이트 요청(axoi)  
+> Iter 2: column별 데이터타입 다양화(number, text, date), datepicker 적용  
+> Iter 3: 웹 소켓 통신, onChange 이벤트로 실시간 데이터 변경 사항 공유 기능 구현  
 
 ### ScreenShots  
 #### Table 편집  
